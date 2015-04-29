@@ -76,11 +76,13 @@ class Microscope:
     else:
       return False 
 
-  def _write(self, command):
+  def _write(self, command, delay=0):
     if self.debug:
       print "Writing {command}\r\n".format(command=command)
     self.iostream.write(unicode(command) + "\r")
     self.iostream.flush()
+    # Wait before reading return code, some functions take a while (stage movement, photo, etc)
+    time.sleep(delay)
     response = self.iostream.readline()
     if self.debug:
       print response + "\r\n"
@@ -204,8 +206,8 @@ class Microscope:
 
   def _get_value(self, value):
     try:
-      parameter = re.compile("R {0} (.*)".format(value=value))
-      response = self._write("R {0}".format(value=value))
+      parameter = re.compile("R {value} (.*) G0\r".format(value=value))
+      response = self._write("R {value}".format(value=value))
       parameterMatch = parameter.match(response)
       if parameterMatch:
         return parameterMatch.groups()[0]
@@ -214,9 +216,9 @@ class Microscope:
       self.connection.close()
       sys.exit()
 
-  def _set_value(self, command, value):
+  def _set_value(self, command, value, delay=0):
     try:
-      response = self._write("{command} {value}".format(command=command, value=value))
+      response = self._write("{command} {value}".format(command=command, value=value), delay=delay)
       return response
     except self.CommandError as e:
       print e.value
@@ -236,7 +238,7 @@ class Microscope:
     # Real output width is 101.6mm, 101600um
     # X scan width is therefore 101600/MAG
     # Read the mag
-    mag = self.get_magnification
+    mag = self.get_magnification()
     x = 127000/mag
     y = 101600/mag
     return (x, y)
@@ -327,8 +329,33 @@ class Microscope:
     response = self._get_value("MAG")
     magnificationMatch = magnification.match(response)
     if magnificationMatch:
-      if magnificationMatch.groups()[1] == 'k':
-        return int(float(magnificationMatch.groups()[0])*1000)
+      if len(magnificationMatch.groups()) == 2:
+        if magnificationMatch.groups()[1] == 'k':
+          return int(float(magnificationMatch.groups()[0])*1000)
+        else:
+          return int(magnificationMatch.groups()[0])
+    else:
+      return False
+
+  def set_magnification(self, mag):
+    # Acceptable magnification values
+    magnifications = {15: '15', 18: '18', 20: '20', 25: '25', 30: '30', 35: '35', 
+                      40: '40', 45: '45', 50: '50', 60: '60', 70: '70', 80: '80',
+                      90: '90', 100: '100', 120: '120', 150: '150', 180: '180', 200: '200',
+                      250: '250', 300: '300', 350: '350', 400: '400', 450: '450', 500: '500',
+                      600: '600', 700: '700', 800: '800', 900: '900', 1000: '1k', 1200: '1.2k',
+                      1500: '1.5k', 1800: '1.8k', 2000: '2k', 2500: '2.5k', 3000: '3k', 3500: '3.5k',
+                      4000: '4k', 4500: '4.5k', 5000: '5k', 6000: '6k', 7000: '7k', 8000: '8k',
+                      9000: '9k', 10000: '10k', 12000: '12k', 15000: '15k', 18000: '18k', 20000: '20k',
+                      25000: '25k', 30000: '30k', 35000: '35k', 40000: '40k', 45000: '45k', 50000: '50k',
+                      60000: '60k', 70000: '70k', 80000: '80k', 90000: '90k', 100000: '100k', 120000: '120k',
+                      150000: '150k', 180000: '180k', 200000: '200k', 250000: '250k', 300000: '300k'}
+    response = self._get_value("MAG")
+    magnificationMatch = magnification.match(response)
+    if magnificationMatch:
+      if len(magnificationMatch.groups()) == 2:
+        if magnificationMatch.groups()[1] == 'k':
+          return int(float(magnificationMatch.groups()[0])*1000)
       else:
         return int(magnificationMatch.groups()[0])
     else:
@@ -368,13 +395,13 @@ class Microscope:
     if value >= 0 and value <= 359:
       response = self._set_value('ROTATION', value)
       return response
-    else
+    else:
       False
 
   def take_photo(self):
     photoSpeed = self.get_photo_speed()
-    response = self._set_value('#PHOTO', 'ON')
-    time.sleep(photoSpeed+10)
+    # 15 seconds of photo taking overhead empirically determined
+    response = self._set_value('#PHOTO', 'ON', photoSpeed+15)
 
 
 #  def set_xy_position(self, x, y):
