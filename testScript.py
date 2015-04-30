@@ -16,11 +16,29 @@ m.set_raster_rotation(3)
 
 #4by4
 
+photo=0
 for row in range(0,4):
   for column in range(0,4):
+    if photo == 14:
+      ack = raw_input('Please save buffered images and hit any key to continue...')
+      photo=0
     m.take_photo()
+    photo+=1
     m.set_x_position(m.get_x_position() + x_move)
   m.set_y_position(m.get_y_position() + y_move)
+  m.set_x_position(start_x)
+
+photo=1
+for row in range(0,8):
+  for column in range(0,8):
+    if photo == 14:
+      ack = raw_input('Please save buffered images and hit enter to continue...')
+      photo=0
+    print "Taking photo {p}, {r}, {c}".format(p=photo, r=row, c=column)
+    photo+=1
+    print "Changing to column {c}".format(c=column)
+  print "Changing to row {r}".format(r=row)
+  print "Changing to column {c}".format(c=column)
 
 
   
