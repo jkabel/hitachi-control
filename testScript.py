@@ -12,6 +12,7 @@ start_y=m.get_y_position()
 x=start_x
 y=start_y
 m.enable_raster_rotation()
+# Empirically determined on my scope as the delta between the stage xy and image xy -JK
 m.set_raster_rotation(3)
 
 #4by4
@@ -27,18 +28,21 @@ for row in range(0,4):
     m.set_x_position(m.get_x_position() + x_move)
   m.set_y_position(m.get_y_position() + y_move)
   m.set_x_position(start_x)
+m.disable_raster_rotation()
 
-photo=1
-for row in range(0,8):
-  for column in range(0,8):
-    if photo == 14:
-      ack = raw_input('Please save buffered images and hit enter to continue...')
-      photo=0
-    print "Taking photo {p}, {r}, {c}".format(p=photo, r=row, c=column)
-    photo+=1
-    print "Changing to column {c}".format(c=column)
-  print "Changing to row {r}".format(r=row)
-  print "Changing to column {c}".format(c=column)
-
-
-  
+import microscope
+m=microscope.Microscope(port="COM4", debug=True)
+m.set_magnification(20000)
+m.take_photo()
+m.set_magnification(10000)
+m.take_photo()
+m.set_magnification(5000)
+m.take_photo()
+m.set_magnification(2000)
+m.take_photo()
+m.set_magnification(500)
+m.take_photo()
+m.set_magnification(200)
+m.take_photo()
+m.set_magnification(100)
+m.take_photo()

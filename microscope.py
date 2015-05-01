@@ -7,23 +7,23 @@
 #
 
 # Required functions:
-#   Read stage
-#   Move stage
-#   Correct scan rotation (scan X,Y not parallel to stage X,Y)
+#   Read stage (CHECK)
+#   Move stage (CHECK)
+#   Correct scan rotation (scan X,Y not parallel to stage X,Y) (CHECK and it worked better than I thought!)
 #   Activate auto focus
-#   Trigger photo capture
+#   Trigger photo capture (CHECK)
 #   Turn off high voltage when complete
-#   Set magnification
+#   Set magnification (CHECK)
 #   
 # Things to note:
 #   Coordinates are given as a hex value in steps, 6 characters with leading zeroes, all caps
 #     "{0:0>6X}".format(number) will get you there
-#   int('ABC', base=16)
-#   X = 00
-#   Y = 01
-#   R = 10
-#   Z = 20
-#   T = 21
+#   Motor axes:
+#     X = 00
+#     Y = 01
+#     R = 10
+#     Z = 20
+#     T = 21
 
 import serial, io, time, re, sys
 
@@ -50,8 +50,8 @@ class Microscope:
     self._zt_axis = '2'
     self._r_axis = '1'
     # Slew rates (empirical), microns/s
-    self._x_slew_rate = 1250
-    self._y_slew_rate = 1250
+    self._x_slew_rate = 1200
+    self._y_slew_rate = 1200
     # Internal position tracking
     self._x_position = self.get_x_position()
     self._y_position = self.get_y_position()
@@ -232,15 +232,16 @@ class Microscope:
     self._write("#STAGE OFF")
 
   def fov(self):
-    # Mag referenced to polaroid 545
+    # Example image at 200x as reference
     # Real output width is 127mm, 127000um
     # X scan width is therefore 127000/MAG
-    # Real output width is 101.6mm, 101600um
-    # X scan width is therefore 101600/MAG
+    # Real output height is 95.25mm, 95250um
+    # X scan width is therefore 95250/MAG
+    # These values will need proper calibration, but that's future Jacob's problem.
     # Read the mag
     mag = self.get_magnification()
     x = 127000/mag
-    y = 101600/mag
+    y = 95250/mag
     return (x, y)
 
   def estop(self):
@@ -262,7 +263,7 @@ class Microscope:
 
   def set_x_position(self, position):
     self.enable_stage_control()
-    # Calculate delay to wait for halt code, subtract 5 seconds to put it in the readline timeout window
+    # Calculate delay to wait for halt code, subtract 5 seconds to hopefully put it in the readline timeout window
     delay = abs(position - self._x_position)/self._x_slew_rate
     if delay > 5:
       delay -= 5
@@ -286,7 +287,7 @@ class Microscope:
 
   def set_y_position(self, position):
     self.enable_stage_control()
-    # Calculate delay to wait for halt code, subtract 5 seconds to put it in the readline timeout window
+    # Calculate delay to wait for halt code, subtract 5 seconds to hopefully put it in the readline timeout window
     delay = abs(position - self._y_position)/self._y_slew_rate
     if delay > 5:
       delay -= 5
@@ -337,8 +338,8 @@ class Microscope:
     else:
       return False
 
-  def set_magnification(self, mag):
-    # Acceptable magnification values
+  def set_magnification(self, inputMag):
+    # Acceptable magnification values and the corresponding text command
     magnifications = {15: '15', 18: '18', 20: '20', 25: '25', 30: '30', 35: '35', 
                       40: '40', 45: '45', 50: '50', 60: '60', 70: '70', 80: '80',
                       90: '90', 100: '100', 120: '120', 150: '150', 180: '180', 200: '200',
@@ -350,16 +351,12 @@ class Microscope:
                       25000: '25k', 30000: '30k', 35000: '35k', 40000: '40k', 45000: '45k', 50000: '50k',
                       60000: '60k', 70000: '70k', 80000: '80k', 90000: '90k', 100000: '100k', 120000: '120k',
                       150000: '150k', 180000: '180k', 200000: '200k', 250000: '250k', 300000: '300k'}
-    response = self._get_value("MAG")
-    magnificationMatch = magnification.match(response)
-    if magnificationMatch:
-      if len(magnificationMatch.groups()) == 2:
-        if magnificationMatch.groups()[1] == 'k':
-          return int(float(magnificationMatch.groups()[0])*1000)
-      else:
-        return int(magnificationMatch.groups()[0])
-    else:
-      False
+    deltas = []
+    # Find the closest value to whatever the user has specified and set that
+    for magnification in magnifications:
+      deltas.append([abs(magnification-inputMag), magnification])
+    response = self._set_value('MAG', magnifications[min(deltas)[1]])
+    return response
 
   def get_photo_speed(self):
     photoSpeed = re.compile("([0-9]+)")
@@ -382,6 +379,26 @@ class Microscope:
     else:
       False
 
+  def enable_hv(self):
+    response = self._set_value('HV', 'ON')
+    return response
+
+  def disable_hv(self):
+    response = self._set_value('HV', 'OFF')
+    return response
+
+  def set_hv(self, value):
+    # Value in volts, rounded to the nearest 10v
+    value = int(round(value, -1))
+    if value >= 300 and value <= 9990:
+      response = self._set_value('HV', "{0:<.2f}".format(value/100.0))
+    elif value >= 10000 and value <= 30000:
+      value = int(round(value, -2))
+      response = self._set_value('HV', "{0:<.1f}".format(value/100.0))
+      return response
+    else:
+      False
+
   def enable_raster_rotation(self):
     response = self._set_value('ROTATION', 'ON')
     return response
@@ -396,22 +413,46 @@ class Microscope:
       response = self._set_value('ROTATION', value)
       return response
     else:
-      False
+      return False
+
+  # I dream of active linescans... With Quartz XOne and pywinauto.  Someday.
+  def enable_spot_analysis(self):
+    response = self._set_value('SPOTA', 'ON')
+    return response
+
+  # Oddly, this is how all analytical functions are disabled
+  def disable_analysis(self):
+    response = self._set_value('ANAL', 'OFF')
+    return response
+
+  def spot_increments(self):
+    fov = self.fov()
+    # Calculate the delta between spot increment in x and y axes
+    xSpotDelta = fov[0]/640.0
+    ySpotDelta = fov[1]/480.0
+    return (xSpotDelta, ySpotDelta)
+
+  def set_spot_x_position(self, spotX):
+    # Acceptable values are between 64 and 574
+    spotX = int(spotX)
+    if spotX >= 64 and spotX <= 574:
+      response = self._set_value('SPOTX', '{0}'.format(spotX))
+      return response
+    else:
+      return False
+
+  def set_spot_y_position(self, spotY):
+    # Acceptable values are between 50 and 460
+    spotY = int(spotY)
+    if spotY >= 50 and spotY <= 460:
+      response = self._set_value('SPOTY', '{0}'.format(spotY))
+      return response
+    else:
+      return False
 
   def take_photo(self):
     photoSpeed = self.get_photo_speed()
-    # 15 seconds of photo taking overhead empirically determined
-    response = self._set_value('#PHOTO', 'ON', photoSpeed+15)
+    # 10 seconds of photo taking overhead empirically determined
+    response = self._set_value('#PHOTO', 'ON', photoSpeed+10)
 
-
-#  def set_xy_position(self, x, y):
-#    self.enable_stage_control
-#    self.write("#00M0 {0:0>6X}".format(x))
-#    self.write("#00C0")
-#    self.write("#01M0 {0:0>6X}".format(y))
-#    self.write("#00C0")
-#    self.disable_stage_control
-
-
-
-
+  
