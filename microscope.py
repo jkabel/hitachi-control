@@ -88,34 +88,37 @@ class Microscope:
       print response + "\r\n"
     stageError = re.compile("([0-9]+)(E[0-9])")
     stageErrorMatch = stageError.match(response)
-    if response == "":
-      # No response
-      raise self.CommandError("No response from microscope")
-    elif response == "E1":
-      # Abnormal end error
-      raise self.CommandError("Abnormal end error")
-    elif response == "E2":
-      # Unexecuted/unexecutable error
-      raise self.CommandError("Unexecuted/unexecutable error")
-    elif response == "E6":
-      # Stage drive disconnected error
-      raise self.CommandError("Stage drive disconnected")
-    elif response == "E7":
-      # Data reading error
-      raise self.CommandError("Data reading error")
-    elif response == "E8":
-      # Undefined command received
-      raise self.CommandError("Undefined command receieved")
-    elif response == "E9":
-      # Unacceptable set value received
-      raise self.CommandError("Unacceptable value receieved")
+    standardCode = re.compile("[A-Z0-9\ ]+([EG][0-9])")
+    standardCodeMatch = standardCode.match(response)
+    if standardCodeMatch != None:
+      if standardCodeMatch.groups[0] == "G0":
+        # Good response
+        return response
+      elif standardCodeMatch.groups[0] == "E1":
+        # Abnormal end error
+        raise self.CommandError("Abnormal end error")
+      elif standardCodeMatch.groups[0] == "E2":
+        # Unexecuted/unexecutable error
+        raise self.CommandError("Unexecuted/unexecutable error")
+      elif standardCodeMatch.groups[0] == "E6":
+        # Stage drive disconnected error
+        raise self.CommandError("Stage drive disconnected")
+      elif standardCodeMatch.groups[0] == "E7":
+        # Data reading error
+        raise self.CommandError("Data reading error")
+      elif standardCodeMatch.groups[0] == "E8":
+        # Undefined command received
+        raise self.CommandError("Undefined command receieved")
+      elif standardCodeMatch.groups[0] == "E9":
+        # Unacceptable set value received
+        raise self.CommandError("Unacceptable value receieved")
     elif stageErrorMatch != None:
       if stageErrorMatch.groups()[1] == "E1":
         raise self.CommandError("Stage command error")
       elif stageErrorMatch.groups()[1] == "E2":
         raise self.CommandError("Stage communication error")
     else:
-      return response
+      raise self.CommandError("Unknow response: {0}".format(response))
 
   def _await_halt_code(self, address, delay):
     time.sleep(delay)
@@ -416,6 +419,7 @@ class Microscope:
       return False
 
   # I dream of active linescans... With Quartz XOne and pywinauto.  Someday.
+  # Important note: system must be in spot positioning mode before this will do anything
   def enable_spot_analysis(self):
     response = self._set_value('SPOTA', 'ON')
     return response
@@ -436,7 +440,7 @@ class Microscope:
     # Acceptable values are between 64 and 574
     spotX = int(spotX)
     if spotX >= 64 and spotX <= 574:
-      response = self._set_value('SPOTX', '{0}'.format(spotX))
+      response = self._set_value('SPOTP X', '{0}'.format(spotX))
       return response
     else:
       return False
@@ -445,14 +449,26 @@ class Microscope:
     # Acceptable values are between 50 and 460
     spotY = int(spotY)
     if spotY >= 50 and spotY <= 460:
-      response = self._set_value('SPOTY', '{0}'.format(spotY))
+      response = self._set_value('SPOTP Y', '{0}'.format(spotY))
       return response
     else:
       return False
 
+  def trigger_abc(self):
+    # There is a delay, but it should be well within the readline timeout
+    response = self._set_value('ABC', 'ON')
+
+  def trigger_autofocus_coarse(self):
+    # There is a delay, but it should be well within the readline timeout
+    response = self._set_value('AFC', 'C')
+
+  def trigger_autofocus_fine(self):
+    # There is a delay, but it should be well within the readline timeout
+    response = self._set_value('AFC', 'F')
+
   def take_photo(self):
     photoSpeed = self.get_photo_speed()
     # 10 seconds of photo taking overhead empirically determined
+    # YMMV
     response = self._set_value('#PHOTO', 'ON', photoSpeed+10)
 
-  
