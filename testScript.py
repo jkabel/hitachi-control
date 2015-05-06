@@ -28,25 +28,30 @@ def take_mosaic(microscope, rows, columns, abc=False):
     microscope.set_x_position(start_x)
   microscope.disable_raster_rotation()
 
-def take_series(microscope, afc=False, aff=False, abc=False)
+def take_series(microscope, af=False, abc=False):
+  series=[]
+  photo=0
+  while ack == "y":
+    position_x = microscope.get_x_position()
+    position_y = microscope.get_x_position()
+    mag = microscope.get_magnification()
+    series.append([position_x, position_y, mag])
+    ack = raw_input('Add another point? (y/n)')
+  for point in series:
+    microscope.set_x_position(point[0])
+    microscope.set_y_position(point[1])
+    microscope.set_magnification(point[2])
+    if abc:
+      microscope.trigger_abc()
+    if af:
+      microscope.set_magnification(point[2]*5)
+      microscope.trigger_autofocus_coarse()
+      microscope.trigger_autofocus_fine()
+      microscope.set_magnification(point[2])
+    if photo == 14:
+      ack = raw_input('Please save buffered images and hit any key to continue...')
+      photo=0
+    microscope.take_photo()
+    photo+=1
+    
 
-
-
-
-
-import microscope
-m=microscope.Microscope(port="COM4", debug=True)
-m.set_magnification(20000)
-m.take_photo()
-m.set_magnification(10000)
-m.take_photo()
-m.set_magnification(5000)
-m.take_photo()
-m.set_magnification(2000)
-m.take_photo()
-m.set_magnification(500)
-m.take_photo()
-m.set_magnification(200)
-m.take_photo()
-m.set_magnification(100)
-m.take_photo()
