@@ -91,25 +91,25 @@ class Microscope:
     standardCode = re.compile("[A-Z0-9\ ]+([EG][0-9])")
     standardCodeMatch = standardCode.match(response)
     if standardCodeMatch != None:
-      if standardCodeMatch.groups[0] == "G0":
+      if standardCodeMatch.groups()[0] == "G0":
         # Good response
         return response
-      elif standardCodeMatch.groups[0] == "E1":
+      elif standardCodeMatch.groups()[0] == "E1":
         # Abnormal end error
         raise self.CommandError("Abnormal end error")
-      elif standardCodeMatch.groups[0] == "E2":
+      elif standardCodeMatch.groups()[0] == "E2":
         # Unexecuted/unexecutable error
         raise self.CommandError("Unexecuted/unexecutable error")
-      elif standardCodeMatch.groups[0] == "E6":
+      elif standardCodeMatch.groups()[0] == "E6":
         # Stage drive disconnected error
         raise self.CommandError("Stage drive disconnected")
-      elif standardCodeMatch.groups[0] == "E7":
+      elif standardCodeMatch.groups()[0] == "E7":
         # Data reading error
         raise self.CommandError("Data reading error")
-      elif standardCodeMatch.groups[0] == "E8":
+      elif standardCodeMatch.groups()[0] == "E8":
         # Undefined command received
         raise self.CommandError("Undefined command receieved")
-      elif standardCodeMatch.groups[0] == "E9":
+      elif standardCodeMatch.groups()[0] == "E9":
         # Unacceptable set value received
         raise self.CommandError("Unacceptable value receieved")
     elif stageErrorMatch != None:
@@ -118,7 +118,7 @@ class Microscope:
       elif stageErrorMatch.groups()[1] == "E2":
         raise self.CommandError("Stage communication error")
     else:
-      raise self.CommandError("Unknow response: {0}".format(response))
+      return response
 
   def _await_halt_code(self, address, delay):
     time.sleep(delay)
@@ -363,7 +363,7 @@ class Microscope:
 
   def get_photo_speed(self):
     photoSpeed = re.compile("([0-9]+)")
-    response = self._get_value("MPSPEED")
+    response = self._get_value("PSPEED")
     photoSpeedMatch = photoSpeed.match(response)
     if photoSpeedMatch:
       return int(photoSpeedMatch.groups()[0])
